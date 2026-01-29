@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Danh sách sản phẩm (SPA)</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; }
+        th { background: #f5f5f5; }
+        button { margin: 2px; }
+        form div { margin: 4px 0; }
+        label { display: inline-block; width: 100px; }
+        img.thumb { height: 50px; }
+    </style>
+</head>
+<body>
+<h1>Danh sách sản phẩm (SPA)</h1>
+
+<h2>Thêm / Sửa sản phẩm</h2>
+<form id="product-form" onsubmit="saveProduct(event)">
+    <input type="hidden" id="product-id">
+    <input type="hidden" id="imagePath"> <!-- lưu path sau upload -->
+
+    <div>
+        <label for="bookTitle">Tên sách:</label>
+        <input type="text" id="bookTitle" required>
+    </div>
+    <div>
+        <label for="author">Tác giả:</label>
+        <input type="text" id="author">
+    </div>
+    <div>
+        <label for="publisher">Nhà XB:</label>
+        <input type="text" id="publisher">
+    </div>
+    <div>
+        <label for="price">Giá:</label>
+        <input type="number" id="price" required>
+    </div>
+    <div>
+        <label for="stockQuantity">Tồn kho:</label>
+        <input type="number" id="stockQuantity" value="0">
+    </div>
+
+    <div>
+        <label for="imageFile">Ảnh:</label>
+        <input type="file" id="imageFile" accept="image/*">
+        <button type="button" onclick="uploadImage()">Upload</button>
+        <span id="upload-status"></span>
+    </div>
+
+    <div>
+        <label for="categoryId">Danh mục:</label>
+        <select id="categoryId" required>
+            <option value="">-- Chọn loại --</option>
+        </select>
+    </div>
+    <div>
+        <label for="description">Mô tả:</label>
+        <textarea id="description" rows="3" cols="40"></textarea>
+    </div>
+
+    <button type="submit">Lưu</button>
+    <button type="button" onclick="resetForm()">Clear</button>
+</form>
+
+<hr>
+
+<button onclick="loadProducts()">Load sản phẩm</button>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Tên sách</th>
+        <th>Tác giả</th>
+        <th>Giá</th>
+        <th>Tồn kho</th>
+        <th>Danh mục</th>
+        <th>Ảnh</th>
+        <th>Thao tác</th>
+    </tr>
+    </thead>
+    <tbody id="products-body">
+    </tbody>
+</table>
+
+<script>
+    const API_BASE = '/Asm/api/products';
+    const CATEGORY_API = '/Asm/api/categories';
+    const UPLOAD_API = '/Asm/api/upload-image';
+
+    async function loadCategories() {
+        try {
+            const res = await fetch(CATEGORY_API);
+            if (!res.ok) return;
+            const data = await res.json();
+            const sel = document.getElementById('categoryId');
+            sel.innerHTML = '<option value="">-- Chọn loại --</option>';
+            data.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.categoryName;
+                sel.appendChild(opt);
+            });
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function loadProducts() {
+        try {
+            const res = await fetch(API_BASE);
+            if (!res.ok) {
+                alert('Lỗi load products: ' + res.status);
+                return;
+            }
+            const data = await res.json();
+            renderTable(data);
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi kết nối API');
+        }
+    }
+
+    function renderTable(products) {
+        const tbody = document.getElementById('products-body');
+        tbody.innerHTML = '';
+
+        products.forEach(p => {
+            const tr = document.createElement('tr');
+            const imgUrl = p.imagePath ? '/Asm' + p.imagePath : '';
+
+            tr.innerHTML = `
+                <td>${p.id}</td>
+                <td>${p.bookTitle}</td>
+                <td>${p.author || ''}</td>
+                <td>${p.price}</td>
+                <td>${p.stockQuantity}</td>
+                <td>${p.categoryName || ''}</td>
+                <td>
+                    ${p.imagePath ? `<img class="thumb" src="${imgUrl}" alt="">` : ''}
+                </td>
+                <td>
+                    <button onclick="viewDetail(${p.id})">Xem</button>
+                    <button onclick="startEdit(${p.id})">Sửa</button>
+                    <button onclick="deleteProduct(${p.id})">Xóa</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function viewDetail(id) {
+        try {
+            const res = await fetch(`${API_BASE}/${id}`);
+            if (!res.ok) {
+                alert('Không tìm thấy sản phẩm ' + id);
+                return;
+            }
+            const p = await res.json();
+            const desc = (p.description ?? '').toString();
+            alert(
+                'ID: ' + p.id + '\n' +
+                'Tên: ' + (p.bookTitle || '') + '\n' +
+                'Tác giả: ' + (p.author || '') + '\n' +
+                'Giá: ' + (p.price || '') + '\n' +
+                'Tồn kho: ' + (p.stockQuantity || '') + '\n' +
+                'Danh mục: ' + (p.categoryName || '') + '\n' +
+                'Mô tả: ' + desc
+            );
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi khi xem chi tiết');
+        }
+    }
+
+    async function deleteProduct(id) {
+        if (!confirm('Xóa sản phẩm ' + id + '?')) return;
+        try {
+            const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert('Xóa lỗi: ' + (err.error || res.status));
+                return;
+            }
+            await loadProducts();
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi khi xóa');
+        }
+    }
+
+    async function startEdit(id) {
+        try {
+            const res = await fetch(`${API_BASE}/${id}`);
+            if (!res.ok) {
+                alert('Không tìm thấy sản phẩm ' + id);
+                return;
+            }
+            const p = await res.json();
+            document.getElementById('product-id').value = p.id;
+            document.getElementById('bookTitle').value = p.bookTitle || '';
+            document.getElementById('author').value = p.author || '';
+            document.getElementById('publisher').value = p.publisher || '';
+            document.getElementById('price').value = p.price || 0;
+            document.getElementById('stockQuantity').value = p.stockQuantity || 0;
+            document.getElementById('imagePath').value = p.imagePath || '';
+            document.getElementById('categoryId').value = p.categoryId || '';
+            document.getElementById('description').value = p.description || '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi khi load sản phẩm để sửa');
+        }
+    }
+
+    async function uploadImage() {
+        const fileInput = document.getElementById('imageFile');
+        const statusSpan = document.getElementById('upload-status');
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Chọn file ảnh trước đã');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+
+        statusSpan.textContent = 'Đang upload...';
+
+        try {
+            const res = await fetch(UPLOAD_API, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert('Upload lỗi: ' + (data.error || res.status));
+                statusSpan.textContent = 'Lỗi upload';
+                return;
+            }
+            // lưu path vào hidden field, dùng khi gọi POST/PUT products
+            document.getElementById('imagePath').value = data.imagePath;
+            statusSpan.textContent = 'Đã upload: ' + data.imagePath;
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi kết nối khi upload ảnh');
+            statusSpan.textContent = 'Lỗi upload';
+        }
+    }
+
+    async function saveProduct(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('product-id').value;
+
+        const body = {
+            bookTitle: document.getElementById('bookTitle').value,
+            author: document.getElementById('author').value || null,
+            publisher: document.getElementById('publisher').value || null,
+            price: Number(document.getElementById('price').value),
+            stockQuantity: Number(document.getElementById('stockQuantity').value || 0),
+            imagePath: document.getElementById('imagePath').value || null,
+            categoryId: Number(document.getElementById('categoryId').value),
+            description: document.getElementById('description').value || null
+        };
+
+        const options = {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        };
+
+        const url = id ? `${API_BASE}/${id}` : API_BASE;
+
+        try {
+            const res = await fetch(url, options);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert('Lỗi lưu sản phẩm: ' + (err.error || res.status));
+                return;
+            }
+            resetForm();
+            await loadProducts();
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi kết nối khi lưu sản phẩm');
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('product-id').value = '';
+        document.getElementById('imagePath').value = '';
+        document.getElementById('imageFile').value = '';
+        document.getElementById('upload-status').textContent = '';
+        document.getElementById('product-form').reset();
+    }
+
+    // load category + products khi mở trang
+    loadCategories();
+    loadProducts();
+</script>
+</body>
+</html>
