@@ -8,8 +8,8 @@ import jakarta.mail.internet.*;
 public class EmailUtil {
     private static final String SMTP_HOST = "smtp.gmail.com";
     private static final String SMTP_PORT = "587";
-    private static final String SENDER_EMAIL = "trannghia2006nd@gmail.com";
-    private static final String SENDER_PASSWORD = "grhwkcxpnukixgej"; // App Password (bỏ dấu cách)
+    private static final String SENDER_EMAIL = "";
+    private static final String SENDER_PASSWORD = ""; // App Password (bỏ dấu cách)
 
     // Method gửi email đơn giản (dùng cho OTP)
     public static void sendEmail(String recipientEmail, String subject, String htmlBody) throws Exception {
